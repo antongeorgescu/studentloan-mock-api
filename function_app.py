@@ -927,3 +927,123 @@ def update_student_address(req: func.HttpRequest) -> func.HttpResponse:
             cursor.close()
         if 'conn' in locals():
             conn.close()
+
+@app.route(route="student/create-nonregistered", auth_level=func.AuthLevel.ANONYMOUS)
+def create_student_nonregistered(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+
+    try:
+        # Get student data from request body
+        student_data = req.get_json()
+        
+        # Validate required fields
+        required_fields = ['firstName', 'lastName', 'homeAddress', 
+                         'phoneNumber', 'email', 'preference']
+        missing_fields = [field for field in required_fields 
+                         if field not in student_data]
+        
+        if missing_fields:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': f'Missing required fields: {", ".join(missing_fields)}'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        
+        # Validate communication preference
+        valid_preferences = ['SMS', 'Call', 'Email']
+        if student_data['preference'] not in valid_preferences:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': f'Invalid preference. Must be one of: {", ".join(valid_preferences)}'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Begin transaction
+        conn.autocommit = False
+
+        try:
+            # Insert communication record
+            cursor.execute("""
+                INSERT INTO Communication (PhoneNumber, Email, Preference)
+                OUTPUT inserted.CommunicationID
+                VALUES (?, ?, ?)
+            """, student_data['phoneNumber'], 
+                student_data['email'], 
+                student_data['preference'])
+            
+            communication_id = cursor.fetchone()[0]
+
+            # Insert student record
+            cursor.execute("""
+                INSERT INTO Student (FirstName, LastName, HomeAddress, CommunicationID)
+                OUTPUT 
+                    inserted.StudentID,
+                    inserted.FirstName,
+                    inserted.LastName,
+                    inserted.HomeAddress
+                VALUES (?, ?, ?, ?)
+            """, student_data['firstName'],
+                student_data['lastName'],
+                student_data['homeAddress'],
+                communication_id)
+
+            new_student = cursor.fetchone()
+            
+            # Get complete student information
+            cursor.execute("""
+                SELECT 
+                    s.StudentID,
+                    s.FirstName,
+                    s.LastName,
+                    s.HomeAddress,
+                    c.PhoneNumber,
+                    c.Email,
+                    c.Preference
+                FROM Student s
+                JOIN Communication c ON s.CommunicationID = c.CommunicationID
+                WHERE s.StudentID = ?
+            """, new_student[0])
+
+            columns = ['studentId', 'firstName', 'lastName', 'homeAddress', 
+                      'phoneNumber', 'email', 'preference']
+            student_info = dict(zip(columns, cursor.fetchone()))
+
+            conn.commit()
+            
+            return HttpResponse(
+                json.dumps({
+                    'status': 'success',
+                    'message': 'Student created successfully',
+                    'data': student_info
+                }),
+                status_code=201,
+                mimetype="application/json"
+            )
+
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+    except Exception as e:
+         return HttpResponse(
+            json.dumps({
+                'status': 'error',
+                'message': str(e)
+            }),
+            status_code=500,
+            mimetype="application/json"
+        )
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
