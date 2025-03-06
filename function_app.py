@@ -836,7 +836,7 @@ def update_student_communication(req: func.HttpRequest) -> func.HttpResponse:
         if 'conn' in locals():
             conn.close()
 
-@app.route(route="update_student_address", auth_level=func.AuthLevel.ANONYMOUS)
+@app.route(route="student/update/address", auth_level=func.AuthLevel.ANONYMOUS)
 def update_student_address(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request.')
 
