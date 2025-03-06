@@ -835,3 +835,95 @@ def update_student_communication(req: func.HttpRequest) -> func.HttpResponse:
             cursor.close()
         if 'conn' in locals():
             conn.close()
+
+@app.route(route="update_student_address", auth_level=func.AuthLevel.ANONYMOUS)
+def update_student_address(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+
+    try:
+        # Get update data from request body
+        update_data = req.get_json()
+        if not update_data or 'studentid' not in update_data:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': 'Student ID is required'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        student_id = update_data['studentid']
+
+        if not 'homeAddress' not in update_data:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': 'Home address is required'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+                        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Begin transaction
+        conn.autocommit = False
+
+        try:
+            # Check if student exists and update address
+            cursor.execute("""
+                UPDATE Student
+                SET HomeAddress = ?
+                OUTPUT 
+                    inserted.StudentID,
+                    inserted.FirstName,
+                    inserted.LastName,
+                    inserted.HomeAddress
+                WHERE StudentID = ?
+            """, update_data['homeAddress'], student_id)
+            
+            updated_row = cursor.fetchone()
+            if not updated_row:
+                return HttpResponse(
+                    json.dumps({
+                        'status': 'error',
+                        'message': f'Student ID {student_id} not found'
+                    }),
+                    status_code=400,
+                    mimetype="application/json"
+                )
+            
+            # Create result dictionary
+            columns = ['studentId', 'firstName', 'lastName', 'homeAddress']
+            updated_info = dict(zip(columns, updated_row))
+
+            conn.commit()
+
+            return HttpResponse(
+                json.dumps({
+                    'status': 'success',
+                    'message': 'Home address updated successfully',
+                    'data': updated_info
+                }),
+                status_code=200,
+                mimetype="application/json"
+            )
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+    except Exception as e:
+        return HttpResponse(
+            json.dumps({
+                'status': 'error',
+                'message': str(e)
+            }),
+            status_code=500,
+            mimetype="application/json"
+        )
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
