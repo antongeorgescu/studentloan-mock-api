@@ -11,6 +11,7 @@
         "port": 9091
       },
       "preLaunchTask": "func: host start"
-    }
+    },
+
   ]
 }
