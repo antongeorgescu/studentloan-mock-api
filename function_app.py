@@ -1217,3 +1217,186 @@ def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
             cursor.close()
         if 'conn' in locals():
             conn.close()
+
+@app.route(route="student/update/loan", auth_level=func.AuthLevel.ANONYMOUS)
+def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+
+    try:
+        # Validate request body
+        loan_data = req.get_json()
+        
+        if not loan_data or 'studentid' not in loan_data:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': 'Student ID is required'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        student_id = loan_data['studentid']
+        
+        required_fields = [
+            'loanAmount',
+            'enrollmentType',
+            'disbursementDate'
+        ]
+        
+        if not loan_data or not all(field in loan_data for field in required_fields):
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': f'Required fields: {", ".join(required_fields)}'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Begin transaction
+        conn.autocommit = False
+
+        try:
+            # Check if student exists and get current loan info
+            cursor.execute("""
+                SELECT s.LoanInfoID, 
+                       l.LoanAmount,
+                       l.DisbursementDate,
+                       l.LoanBalance,
+                       si.ProgramOfStudy,
+                       ei.CollegeName
+                FROM Student s
+                LEFT JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
+                LEFT JOIN StudyInfo si ON l.StudyInfoID = si.StudyInfoID
+                LEFT JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
+                WHERE s.StudentID = ?
+            """, student_id)
+            
+            student_info = cursor.fetchone()
+            if not student_info:
+                return HttpResponse(
+                    json.dumps({
+                        'status': 'error',
+                        'message': f'Student ID {student_id} not found'
+                    }),
+                    status_code=400,
+                    mimetype="application/json"
+                )
+            
+            # Check if student already has a loan
+            if student_info[0] is not None:
+                return HttpResponse(
+                    json.dumps({
+                        'status': 'error',
+                        'message': 'Student already has an active loan',
+                        'existingLoan': {
+                            'loanAmount': float(student_info[1]),
+                            'disbursementDate': student_info[2].isoformat(),
+                            'currentBalance': float(student_info[3]),
+                            'programOfStudy': student_info[4],
+                            'collegeName': student_info[5]
+                        }
+                    }),
+                    status_code=409,
+                    mimetype="application/json"
+                )
+                
+            # Get study info and education institution IDs
+            cursor.execute("""
+                SELECT StudyInfoID, EducationInstitutionID
+                FROM Student s
+                JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
+                WHERE s.StudentID = ?
+            """, student_id)
+
+            study_info = cursor.fetchone()
+            if not study_info:
+                return HttpResponse(
+                    json.dumps({
+                        'status': 'error',
+                        'message': 'Student must have study information before adding a loan'
+                    }),
+                    status_code=400,
+                    mimetype="application/json"
+                )
+            
+            # Create loan info record
+            disbursement_date = date.fromisoformat(loan_data['disbursementDate'])
+            cursor.execute("""
+                INSERT INTO LoanInfo 
+                (StudyInfoID, EducationInstitutionID, EnrollmentType, 
+                 LoanAmount, DisbursementDate, LoanBalance, PercentagePaid)
+                OUTPUT inserted.LoanInfoID
+                VALUES (?, ?, ?, ?, ?, ?, '0%')
+            """, study_info[0], study_info[1], 
+                loan_data['enrollmentType'],
+                loan_data['loanAmount'],
+                disbursement_date,
+                loan_data['loanAmount'])
+            
+            loan_info_id = cursor.fetchone()[0]
+
+            # Update student with new loan info
+            cursor.execute("""
+                UPDATE Student
+                SET LoanInfoID = ?
+                WHERE StudentID = ?
+            """, loan_info_id, student_id)
+
+            # Get updated loan information
+            cursor.execute("""
+                SELECT 
+                    s.StudentID,
+                    s.FirstName,
+                    s.LastName,
+                    si.ProgramOfStudy,
+                    ei.CollegeName,
+                    l.LoanAmount,
+                    l.EnrollmentType,
+                    l.DisbursementDate,
+                    l.LoanBalance,
+                    l.PercentagePaid
+                FROM Student s
+                JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
+                JOIN StudyInfo si ON l.StudyInfoID = si.StudyInfoID
+                JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
+                WHERE s.StudentID = ?
+            """, student_id)
+
+            columns = [column[0] for column in cursor.description]
+            updated_info = dict(zip(columns, cursor.fetchone()))
+
+            conn.commit()
+
+            return HttpResponse(
+                json.dumps({
+                    'status': 'success',
+                    'message': 'Loan added successfully',
+                    'data': updated_info
+                }),
+                status_code=201,
+                mimetype="application/json"
+            )
+        
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+    except Exception as e:
+        return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': str(e)
+                }),
+                status_code=500,
+                mimetype="application/json"
+            )
+            
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
