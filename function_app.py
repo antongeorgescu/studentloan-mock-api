@@ -1205,7 +1205,9 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
         required_fields = [
             'loanAmount',
             'enrollmentType',
-            'disbursementDate'
+            'disbursementDate',
+            'studyinfoid', 
+            'educationinstitutionid'
         ]
         
         if not loan_data or not all(field in loan_data for field in required_fields):
@@ -1268,25 +1270,6 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
                     status_code=409,
                     mimetype="application/json"
                 )
-                
-            # Get study info and education institution IDs
-            cursor.execute("""
-                SELECT StudyInfoID, EducationInstitutionID
-                FROM Student s
-                JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
-                WHERE s.StudentID = ?
-            """, student_id)
-
-            study_info = cursor.fetchone()
-            if not study_info:
-                return HttpResponse(
-                    json.dumps({
-                        'status': 'error',
-                        'message': 'Student must have study information before adding a loan'
-                    }),
-                    status_code=400,
-                    mimetype="application/json"
-                )
             
             # Create loan info record
             disbursement_date = date.fromisoformat(loan_data['disbursementDate'])
@@ -1296,7 +1279,8 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
                  LoanAmount, DisbursementDate, LoanBalance, PercentagePaid)
                 OUTPUT inserted.LoanInfoID
                 VALUES (?, ?, ?, ?, ?, ?, '0%')
-            """, study_info[0], study_info[1], 
+            """, loan_data['studyinfoid'], 
+                loan_data['educationinstitutionid'], 
                 loan_data['enrollmentType'],
                 loan_data['loanAmount'],
                 disbursement_date,
@@ -1340,9 +1324,9 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
                 json.dumps({
                     'status': 'success',
                     'message': 'Loan added successfully',
-                    'data': updated_info
-                }),
-                status_code=201,
+                    'data': json.loads(json.dumps(updated_info, default=str))
+                },default=decimal_default),
+                status_code=200,
                 mimetype="application/json"
             )
         
@@ -1359,7 +1343,6 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
                 status_code=500,
                 mimetype="application/json"
             )
-            
     finally:
         if 'cursor' in locals():
             cursor.close()
