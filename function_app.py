@@ -7,6 +7,7 @@ from azure.functions import HttpResponse
 from dotenv import load_dotenv
 from decimal import Decimal
 from datetime import date
+from collections import defaultdict
 
 # Load environment variables
 load_dotenv()
@@ -1048,29 +1049,26 @@ def create_student_nonregistered(req: func.HttpRequest) -> func.HttpResponse:
         if 'conn' in locals():
             conn.close()
 
-@app.route(route="student/update/study-info", auth_level=func.AuthLevel.ANONYMOUS)
-def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
+@app.route(route="loan/update/study-info", auth_level=func.AuthLevel.ANONYMOUS)
+def update_loan_study_info(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request.')
 
     try:
         # Get study data from request body
         study_data = req.get_json()
 
-        if not study_data or 'studentid' not in study_data:
+        if not study_data or 'loanid' not in study_data:
             return HttpResponse(
                 json.dumps({
                     'status': 'error',
-                    'message': 'Student ID is required'
+                    'message': 'Loan ID is required'
                 }),
                 status_code=400,
                 mimetype="application/json"
             )
-        student_id = study_data['studentid']
+        loan_id = study_data['loanid']
 
-        required_fields = [
-            'programOfStudy', 'programCode', 'collegeCode',
-            'collegeName', 'city', 'provinceId'
-        ]
+        required_fields = ['studyinfoid', 'educationinstitutionid']
         
         if not study_data or not all(field in study_data for field in required_fields):
             return HttpResponse(
@@ -1081,7 +1079,9 @@ def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
                 status_code=400,
                 mimetype="application/json"
             )
-        
+        study_info_id = study_data['studyinfoid']
+        education_institution_id = study_data['educationinstitutionid']
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -1089,64 +1089,36 @@ def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
         conn.autocommit = False
 
         try:
-            # Check if student exists and has loan info
+            # Check if loan exists and has study info and efucation institution
             cursor.execute("""
-                SELECT s.LoanInfoID, l.StudyInfoID, l.EducationInstitutionID,
-                       si.ProgramOfStudy, ei.CollegeName
-                FROM Student s
-                LEFT JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
-                LEFT JOIN StudyInfo si ON l.StudyInfoID = si.StudyInfoID
-                LEFT JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
-                WHERE s.StudentID = ?
-            """, student_id)
+                SELECT LoanInfoID, StudyInfoID, EducationInstitutionID
+                FROM Loan
+                WHERE LoanID = ?
+            """, loan_id)
             
-            student_info = cursor.fetchone()
-            if not student_info:
+            loan_info = cursor.fetchone()
+            if not loan_info:
                 return HttpResponse(
                     json.dumps({
                         'status': 'error',
-                        'message': f'Information for student ID {student_id} not found'
+                        'message': f'Information for loan {loan_id} not found'
                     }),
                     status_code=400,
                     mimetype="application/json"
                 )
             
             # Check if student already has study information
-            if student_info[1] is not None:
+            if loan_info[1] is not None:
                 return HttpResponse(
                     json.dumps({
                         'status': 'error',
-                        'message': f'Student {student_id} already has study information',
+                        'message': f'Loan {loan_id} already has study information and education institution data',
                     }),
                     status_code=409,
                     mimetype="application/json"
                 )
             
-            # Insert study program information
-            cursor.execute("""
-                INSERT INTO StudyInfo (ProgramOfStudy, ProgramCode, CollegeCode)
-                OUTPUT inserted.StudyInfoID
-                VALUES (?, ?, ?)
-            """, study_data['programOfStudy'], 
-                study_data['programCode'], 
-                study_data['collegeCode'])
-            
-            study_info_id = cursor.fetchone()[0]
-
-            # Insert or get education institution
-            cursor.execute("""
-                INSERT INTO EducationInstitution 
-                (CollegeName, CollegeCode, City, ProvinceID)
-                OUTPUT inserted.EducationInstitutionID
-                VALUES (?, ?, ?, ?)
-            """, study_data['collegeName'],
-                study_data['collegeCode'],
-                study_data['city'],
-                study_data['provinceId'])
-            
-            education_institution_id = cursor.fetchone()[0]
-
-            # Create loan info record
+            # Update loan info record
             cursor.execute("""
                 INSERT INTO LoanInfo 
                 (StudyInfoID, EducationInstitutionID, EnrollmentType, 
@@ -1156,13 +1128,6 @@ def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
             """, study_info_id, education_institution_id, date.today())
             
             loan_info_id = cursor.fetchone()[0]
-
-            # Update student with loan info
-            cursor.execute("""
-                UPDATE Student
-                SET LoanInfoID = ?
-                WHERE StudentID = ?
-            """, loan_info_id, student_id)
 
             # Get updated student information
             cursor.execute("""
@@ -1180,8 +1145,8 @@ def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
                 JOIN StudyInfo si ON l.StudyInfoID = si.StudyInfoID
                 JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
                 JOIN Province p ON ei.ProvinceID = p.ProvinceID
-                WHERE s.StudentID = ?
-            """, student_id)
+                WHERE l.LoanInfoID = ?
+            """, loan_id)
 
             columns = [column[0] for column in cursor.description]
             updated_info = dict(zip(columns, cursor.fetchone()))
@@ -1191,7 +1156,7 @@ def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
             return HttpResponse(
                 json.dumps({
                     'status': 'error',
-                    'message': f'Study information for student {student_id} added successfully',
+                    'message': f'Study information for loan {loan_id} added successfully',
                     'data': updated_info
                 }),
                 status_code=201,
@@ -1395,6 +1360,225 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
                 mimetype="application/json"
             )
             
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+@app.route(route="students/loan/near-completion/{threshold}", auth_level=func.AuthLevel.ANONYMOUS)
+def get_students_near_completion(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+
+    threshold = req.route_params.get('threshold')
+    if not threshold:
+        return HttpResponse(
+            json.dumps({
+                'status': 'error',
+                'message': 'Threshold integer parameter, with values between 1 and 99, is required'
+            }),
+            status_code=400,
+            mimetype="application/json"
+        )
+    try:
+        threshold = int(threshold)
+        if not 1 <= threshold <= 99:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': 'Threshold must be between 1 and 99'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+    except ValueError:
+        return HttpResponse(
+            json.dumps({
+                'status': 'error', 
+                'message': 'Threshold must be an integer'
+            }),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    try:
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        query = f"""
+            SELECT 
+                s.StudentID,
+                s.FirstName,
+                s.LastName,
+                s.HomeAddress,
+                l.LoanAmount,
+                l.LoanBalance,
+                l.PercentagePaid,
+                si.ProgramOfStudy,
+                ei.CollegeName,
+                ei.City,
+                p.Province,
+                c.PhoneNumber,
+                c.Email,
+                c.Preference
+            FROM Student s
+            JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
+            JOIN StudyInfo si ON l.StudyInfoID = si.StudyInfoID
+            JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
+            JOIN Province p ON ei.ProvinceID = p.ProvinceID
+            JOIN Communication c ON s.CommunicationID = c.CommunicationID
+            WHERE l.LoanBalance <= l.LoanAmount * {round(threshold/100,2)}
+            ORDER BY l.LoanBalance ASC, s.LastName, s.FirstName
+        """
+        
+        cursor.execute(query)
+        
+        columns = [column[0] for column in cursor.description]
+        results = []
+        
+        for row in cursor.fetchall():
+            student_data = dict(zip(columns, row))
+            # Convert decimal values to float for JSON serialization
+            student_data['LoanAmount'] = float(student_data['LoanAmount'])
+            student_data['LoanBalance'] = float(student_data['LoanBalance'])
+            # Calculate percentage remaining
+            percentage_remaining = (student_data['LoanBalance'] / student_data['LoanAmount']) * 100
+            student_data['PercentageRemaining'] = round(percentage_remaining, 2)
+            results.append(student_data)
+        return HttpResponse(
+                json.dumps({
+                    'status': 'sucess',
+                    'count': len(results),
+                    'data': results
+                }),
+                status_code=200,
+                mimetype="application/json"
+            )
+
+    except Exception as e:
+        return HttpResponse(
+            json.dumps({
+                'status': 'error', 
+                'message': str(e)
+            }),
+            status_code=500,
+            mimetype="application/json"
+        )
+    
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+@app.route(route="financial/payment/stats", auth_level=func.AuthLevel.ANONYMOUS)
+def get_banks_payments_stats(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        query = """
+            SELECT 
+                fi.InstitutionName,
+                fi.Code as InstitutionCode,
+                YEAR(p.Paydate) as PaymentYear,
+                FORMAT(p.Paydate, 'MMMM') as PaymentMonth,
+                MONTH(p.Paydate) as MonthNumber,
+                COUNT(*) as NumberOfPayments,
+                SUM(p.Amount) as TotalAmount
+            FROM Payment p
+            JOIN FinancialInstitution fi ON p.FinancialInstitutionID = fi.FinancialInstitutionID
+            GROUP BY 
+                fi.InstitutionName,
+                fi.Code,
+                YEAR(p.Paydate),
+                FORMAT(p.Paydate, 'MMMM'),
+                MONTH(p.Paydate)
+            ORDER BY 
+                fi.InstitutionName,
+                PaymentYear DESC,
+                MonthNumber DESC
+        """
+        
+        cursor.execute(query)
+        
+        # Organize data hierarchically
+        institutions = defaultdict(lambda: defaultdict(dict))
+        institution_totals = defaultdict(lambda: {'totalAmount': 0, 'totalPayments': 0})
+        
+        for row in cursor.fetchall():
+            inst_name = row[0]
+            year = str(row[2])
+            month = row[3]
+            
+            # Create monthly stats
+            monthly_stats = {
+                'month': month,
+                'numberOfPayments': row[5],
+                'totalAmount': float(row[6])
+            }
+            
+            # Update year data if not exists
+            if year not in institutions[inst_name]:
+                institutions[inst_name][year] = {
+                    'year': year,
+                    'numberOfPayments': 0,
+                    'totalAmount': 0,
+                    'monthlyStats': []
+                }
+            
+            # Update year totals
+            yearly_data = institutions[inst_name][year]
+            yearly_data['numberOfPayments'] += monthly_stats['numberOfPayments']
+            yearly_data['totalAmount'] += monthly_stats['totalAmount']
+            yearly_data['monthlyStats'].append(monthly_stats)
+            
+            # Update institution totals
+            institution_totals[inst_name]['totalAmount'] += monthly_stats['totalAmount']
+            institution_totals[inst_name]['totalPayments'] += monthly_stats['numberOfPayments']
+            
+        # Format final response
+        results = []
+        for inst_name, years in institutions.items():
+            institution_data = {
+                'institutionName': inst_name,
+                'totalPayments': institution_totals[inst_name]['totalPayments'],
+                'totalAmount': round(institution_totals[inst_name]['totalAmount'], 2),
+                'yearlyStats': []
+            }
+            
+            # Add yearly stats
+            for year_data in years.values():
+                year_data['totalAmount'] = round(year_data['totalAmount'], 2)
+                institution_data['yearlyStats'].append(year_data)
+            
+            results.append(institution_data)
+        
+        # Sort results by total amount descending
+        results.sort(key=lambda x: x['totalAmount'], reverse=True)
+
+        return HttpResponse(
+            json.dumps({
+                'status': 'success', 
+                'count': len(results),
+                'data': results
+            }),
+            status_code=200,
+            mimetype="application/json"
+        )
+
+    except Exception as e:
+        return HttpResponse(
+            json.dumps({
+                'status': 'error', 
+                'message': str(e)
+            }),
+            status_code=500,
+            mimetype="application/json"
+        )
     finally:
         if 'cursor' in locals():
             cursor.close()

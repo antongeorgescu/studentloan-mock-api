@@ -9,6 +9,12 @@
         "host": "localhost",
         "port": 9091
       },
+      // "preLaunchTask": "func: host start"
+    },
+    {
+      "name": "Launch Python Functions",
+      "type": "debugpy",
+      "request": "launch",
       "preLaunchTask": "func: host start"
     }
   ]
