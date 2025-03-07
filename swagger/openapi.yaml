@@ -4,7 +4,7 @@ info:
   description: Mock API with synthetic data for managing student loans, payments, and student information.
   version: 1.0.0
 servers:
-  - url: http://localhost:7071/api
+  - url: https://student-loan-api.azurewebsites.net/api
 paths:
   /students/lastname/{lastname}:
     get:
