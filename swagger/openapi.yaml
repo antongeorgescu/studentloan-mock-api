@@ -1,0 +1,492 @@
+openapi: 3.0.0
+info:
+  title: Student Loan API (Mock)
+  description: Mock API with synthetic data for managing student loans, payments, and student information.
+  version: 1.0.0
+servers:
+  - url: http://localhost:7071/api
+paths:
+  /students/lastname/{lastname}:
+    get:
+      summary: Get students by last name
+      description: Retrieves student information by matching their last name (partial matches supported)
+      tags:
+        - User Account
+      parameters:
+        - name: lastname
+          in: path
+          required: true
+          description: Last name to search for (supports partial matches)
+          schema:
+            type: string
+      responses:
+          '200':
+              description: Successful response
+              content:
+                application/json:
+                    schema:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                          example: success
+                        count:
+                          type: integer
+                          description: Number of students found
+                        data:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              StudentID:
+                                type: integer
+                              FirstName:
+                                type: string
+                              LastName:
+                                type: string
+                              HomeAddress:
+                                type: string
+                              PhoneNumber:
+                                type: string
+                              Email:
+                                type: string
+                              CommunicationPreference:
+                                type: string
+                              EnrollmentType:
+                                type: string
+                              LoanAmount:
+                                type: number
+                              DisbursementDate:
+                                type: string
+                                format: date
+                              LoanBalance:
+                                type: number
+                              PercentagePaid:
+                                type: string
+                              ProgramOfStudy:
+                                type: string
+                              ProgramCode:
+                                type: string
+                              CollegeName:
+                                type: string
+                              CollegeCity:
+                                type: string
+                              Province:
+                                type: string
+          '400':
+              description: Bad request - missing lastname parameter
+          '500':
+              description: Internal server error
+  /api/provinces/student-count:
+    get:
+      summary: Get student count by province
+      description: Returns the number of students enrolled in each province
+      operationId: getProvinceStudentCount
+      tags:
+        - Stats
+      responses:
+        '200':
+            description: Successful operation
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                      example: "success"
+                    count:
+                      type: integer
+                      description: Number of provinces returned
+                      example: 13
+                    data:
+                      type: array
+                      items:
+                          type: object
+                          properties:
+                              Province:
+                                  type: string
+                                  description: Province name
+                                  example: "Ontario"
+                              StudentCount:
+                                  type: integer
+                                  description: Number of students in the province
+                                  example: 425
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    description: Error message
+  /loans/{loanid}/payments:
+    get:
+      summary: Get payments for a specific loan
+      tags:
+        - Payments
+      parameters:
+        - name: loanid
+          in: path
+          required: true
+          description: The ID of the loan (LoanID in database)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of payments for the specified loan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    paymentId:
+                      type: string
+                    amount:
+                      type: number
+                    date:
+                      type: string
+                      format: date
+        '400':
+          description: Loan Id parameter not provided
+        '404':
+          description: No data found for the respective loan ID
+        '500':
+          description: Server error
+
+  /payments/monthly-by-province:
+    get:
+      summary: Get monthly payments grouped by province
+      tags:
+        - Stats
+      responses:
+        '200':
+          description: A list of monthly payments by province
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    province:
+                      type: string
+                    totalPayments:
+                      type: number
+                    totalAmount:
+                      type: number
+        '500':
+          description: Server error
+  /stats/yearly/loan/{loanid}/payments:
+    get:
+      summary: Get yearly payment statistics for a specific loan
+      tags:
+        - Payments
+      parameters:
+        - name: loanid
+          in: path
+          required: true
+          description: The ID of the loan
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Yearly payment statistics for the specified loan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  loanId:
+                    type: string
+                  yearlyStats:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        year:
+                          type: string
+                        totalPayments:
+                          type: number
+                        totalAmount:
+                          type: number
+        '400':
+          description: Loan Id parameter not provided
+        '404':
+          description: No payments found for loan with specified ID
+        '500':
+          description: Server error
+        
+
+  /students/incomplete-registration:
+    get:
+      summary: Get students with incomplete registration
+      tags:
+        - User Account
+      responses:
+        '200':
+          description: A list of students with incomplete registration
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    studentId:
+                      type: string
+                    firstName:
+                      type: string
+                    lastName:
+                      type: string
+        '500':
+          description: Server error
+
+  /loans/make-payment:
+    post:
+      summary: Make a payment on a loan
+      tags:
+        - Payments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                loanid:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '201':
+          description: Payment made successfully
+        '400':
+          description: No Loan ID provided or no pay amount provided or amount provided not positive or within loan balance range
+        '500':
+          description: Server error
+
+  /student/update/communication:
+    post:
+      summary: Update student communication information
+      tags:
+        - User Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                studentid:
+                  type: string
+                phoneNumber:
+                  type: string
+                email:
+                  type: string
+                preference:
+                  type: string
+      responses:
+        '200':
+          description: Communication information updated successfully
+        '400':
+          description: No student ID or communication data (field values) provided 
+        '500':
+          description: Server error
+
+  /student/update/address:
+    post:
+      summary: Update student address
+      tags:
+        - User Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                studentid:
+                  type: string
+                homeAddress:
+                  type: string
+      responses:
+        '200':
+          description: Address updated successfully
+        '400':
+          description: No student ID or home address provided
+        '409':
+          description: Student ID not found
+        '500':
+          description: Server error
+
+
+  /student/create-nonregistered:
+    post:
+      summary: Create a non-registered student, with contact information and home address, but no loan related information
+      tags:
+        - User Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                homeAddress:
+                  type: string
+                phoneNumber:
+                  type: string
+                email:
+                  type: string
+                preference:
+                  type: string
+      responses:
+        '201':
+          description: Student created successfully
+        '400':
+          description: Invalid request with missing parameters that are required
+        '500':
+          description: Server error
+
+  /loan/update/study-info:
+    post:
+      summary: Update loan study information
+      tags:
+        - Loan Info
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                loanid:
+                  type: string
+                studyinfoid:
+                  type: string
+                educationinstitutionid:
+                  type: string
+      responses:
+        '200':
+          description: Study information updated successfully
+        '400':
+          description: Invalid request
+        '409':
+          description: Selected loan has already program of study information present
+        '500':
+          description: Server error
+
+  /student/update/loan:
+    post:
+      summary: Add a loan to a non-registered student, making the studenty registered
+      tags:
+        - User Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                studentid:
+                  type: string
+                loanAmount:
+                  type: number
+                enrollmentType:
+                  type: string
+                disbursementDate:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Loan added successfully
+        '400':
+          description: Invalid request with missing parameters that are required
+        '500':
+          description: Server error
+
+  /students/loan/near-completion/{threshold}:
+    get:
+      summary: Get students near loan completion
+      tags:
+        - Loan Info
+      parameters:
+        - name: threshold
+          in: path
+          required: true
+          description: Percentage threshold for loan completion
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of students near loan completion
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    studentId:
+                      type: string
+                    firstName:
+                      type: string
+                    lastName:
+                      type: string
+                    loanAmount:
+                      type: number
+                    loanBalance:
+                      type: number
+                    percentageRemaining:
+                      type: number
+        '400':
+          description: Invalid threshold value (mut have value between 1 and 99, and is mandatory)
+        '500':
+          description: Server error
+
+  /financial/payment/stats:
+    get:
+      summary: Get financial payment statistics
+      tags:
+        - Payments
+      responses:
+        '200':
+          description: A list of financial payment statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    institutionName:
+                      type: string
+                    totalPayments:
+                      type: number
+                    totalAmount:
+                      type: number
+                    yearlyStats:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          year:
+                            type: string
+                          numberOfPayments:
+                            type: number
+                          totalAmount:
+                            type: number
+        '500':
+          description: Server error                    

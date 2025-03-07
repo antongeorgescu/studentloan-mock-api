@@ -708,7 +708,7 @@ def update_student_communication(req: func.HttpRequest) -> func.HttpResponse:
         return HttpResponse(
             json.dumps({
                 'status': 'error',
-                'message': 'No post data provided'
+                'message': 'No communication data provided'
             }),
             status_code=400,
             mimetype="application/json"
@@ -891,7 +891,7 @@ def update_student_address(req: func.HttpRequest) -> func.HttpResponse:
                         'status': 'error',
                         'message': f'Student ID {student_id} not found'
                     }),
-                    status_code=400,
+                    status_code=409,
                     mimetype="application/json"
                 )
             
