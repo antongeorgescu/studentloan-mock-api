@@ -1047,3 +1047,173 @@ def create_student_nonregistered(req: func.HttpRequest) -> func.HttpResponse:
             cursor.close()
         if 'conn' in locals():
             conn.close()
+
+@app.route(route="student/update/study-info", auth_level=func.AuthLevel.ANONYMOUS)
+def update_program_study_info(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+
+    try:
+        # Get study data from request body
+        study_data = req.get_json()
+
+        if not study_data or 'studentid' not in study_data:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': 'Student ID is required'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        student_id = study_data['studentid']
+
+        required_fields = [
+            'programOfStudy', 'programCode', 'collegeCode',
+            'collegeName', 'city', 'provinceId'
+        ]
+        
+        if not study_data or not all(field in study_data for field in required_fields):
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': f'Required fields: {", ".join(required_fields)}'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Begin transaction
+        conn.autocommit = False
+
+        try:
+            # Check if student exists and has loan info
+            cursor.execute("""
+                SELECT s.LoanInfoID, l.StudyInfoID, l.EducationInstitutionID,
+                       si.ProgramOfStudy, ei.CollegeName
+                FROM Student s
+                LEFT JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
+                LEFT JOIN StudyInfo si ON l.StudyInfoID = si.StudyInfoID
+                LEFT JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
+                WHERE s.StudentID = ?
+            """, student_id)
+            
+            student_info = cursor.fetchone()
+            if not student_info:
+                return HttpResponse(
+                    json.dumps({
+                        'status': 'error',
+                        'message': f'Information for student ID {student_id} not found'
+                    }),
+                    status_code=400,
+                    mimetype="application/json"
+                )
+            
+            # Check if student already has study information
+            if student_info[1] is not None:
+                return HttpResponse(
+                    json.dumps({
+                        'status': 'error',
+                        'message': f'Student {student_id} already has study information',
+                    }),
+                    status_code=409,
+                    mimetype="application/json"
+                )
+            
+            # Insert study program information
+            cursor.execute("""
+                INSERT INTO StudyInfo (ProgramOfStudy, ProgramCode, CollegeCode)
+                OUTPUT inserted.StudyInfoID
+                VALUES (?, ?, ?)
+            """, study_data['programOfStudy'], 
+                study_data['programCode'], 
+                study_data['collegeCode'])
+            
+            study_info_id = cursor.fetchone()[0]
+
+            # Insert or get education institution
+            cursor.execute("""
+                INSERT INTO EducationInstitution 
+                (CollegeName, CollegeCode, City, ProvinceID)
+                OUTPUT inserted.EducationInstitutionID
+                VALUES (?, ?, ?, ?)
+            """, study_data['collegeName'],
+                study_data['collegeCode'],
+                study_data['city'],
+                study_data['provinceId'])
+            
+            education_institution_id = cursor.fetchone()[0]
+
+            # Create loan info record
+            cursor.execute("""
+                INSERT INTO LoanInfo 
+                (StudyInfoID, EducationInstitutionID, EnrollmentType, 
+                 LoanAmount, DisbursementDate, LoanBalance, PercentagePaid)
+                OUTPUT inserted.LoanInfoID
+                VALUES (?, ?, 'NSL', 0, ?, 0, '0%')
+            """, study_info_id, education_institution_id, date.today())
+            
+            loan_info_id = cursor.fetchone()[0]
+
+            # Update student with loan info
+            cursor.execute("""
+                UPDATE Student
+                SET LoanInfoID = ?
+                WHERE StudentID = ?
+            """, loan_info_id, student_id)
+
+            # Get updated student information
+            cursor.execute("""
+                SELECT 
+                    s.StudentID,
+                    s.FirstName,
+                    s.LastName,
+                    si.ProgramOfStudy,
+                    si.ProgramCode,
+                    ei.CollegeName,
+                    ei.City,
+                    p.Province
+                FROM Student s
+                JOIN LoanInfo l ON s.LoanInfoID = l.LoanInfoID
+                JOIN StudyInfo si ON l.StudyInfoID = si.StudyInfoID
+                JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
+                JOIN Province p ON ei.ProvinceID = p.ProvinceID
+                WHERE s.StudentID = ?
+            """, student_id)
+
+            columns = [column[0] for column in cursor.description]
+            updated_info = dict(zip(columns, cursor.fetchone()))
+
+            conn.commit()
+
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': f'Study information for student {student_id} added successfully',
+                    'data': updated_info
+                }),
+                status_code=201,
+                mimetype="application/json"
+            )
+            
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+    except Exception as e:
+        return HttpResponse(
+            json.dumps({
+                'status': 'error',
+                'message': str(e)
+            }),
+            status_code=500,
+            mimetype="application/json"
+        )
+    
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()

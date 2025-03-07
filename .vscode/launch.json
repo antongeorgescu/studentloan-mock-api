@@ -1,7 +1,6 @@
 {
   "version": "0.2.0",
   "configurations": [
-    
     {
       "name": "Attach to Python Functions",
       "type": "debugpy",
@@ -11,7 +10,6 @@
         "port": 9091
       },
       "preLaunchTask": "func: host start"
-    },
-
+    }
   ]
 }
