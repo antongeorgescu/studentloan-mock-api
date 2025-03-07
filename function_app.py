@@ -855,7 +855,7 @@ def update_student_address(req: func.HttpRequest) -> func.HttpResponse:
             )
         student_id = update_data['studentid']
 
-        if not 'homeAddress' not in update_data:
+        if 'homeAddress' not in update_data:
             return HttpResponse(
                 json.dumps({
                     'status': 'error',
