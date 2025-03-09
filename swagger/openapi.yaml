@@ -265,11 +265,15 @@ paths:
                   type: string
                 amount:
                   type: number
+                  minimum: 100
+                  description: Payment amount in CAD (must be between 100 and loan balance)
       responses:
         '201':
           description: Payment made successfully
         '400':
           description: No Loan ID provided or no pay amount provided or amount provided not positive or within loan balance range
+        '409':
+          description: Payment amount is either less than 100CAD or exceeds loan balance'
         '500':
           description: Server error
 

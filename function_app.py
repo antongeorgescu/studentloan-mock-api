@@ -586,17 +586,17 @@ def post_loan_payment(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json"
         )
     payment_amount = float(payment_data['amount'])
-    if payment_amount <= 0:
+
+    if payment_amount <= 100:
         return HttpResponse(
             json.dumps({
                 'status': 'error',
-                'message': 'Payment amount must be greater than zero'
+                'message': 'Payment amount must be at least 100CAD'
             }),
-            status_code=400,
+            status_code=409,
             mimetype="application/json"
         )
     
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -624,7 +624,6 @@ def post_loan_payment(req: func.HttpRequest) -> func.HttpResponse:
         
         loan_amount, current_balance = loan_info
 
-        # Validate payment amount
         if payment_amount > current_balance:
             return HttpResponse(
                 json.dumps({
@@ -632,6 +631,17 @@ def post_loan_payment(req: func.HttpRequest) -> func.HttpResponse:
                     'message': 'Payment amount cannot exceed current balance'
                 }),
                 status_code=400,
+                mimetype="application/json"
+            )
+            
+        # Validate payment amount
+        if payment_amount > current_balance:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': 'Payment amount cannot exceed current balance'
+                }),
+                status_code=409,
                 mimetype="application/json"
             )
         
