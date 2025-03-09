@@ -21,7 +21,7 @@ username = os.getenv('DB_USERNAME')
 password = os.getenv('DB_PASSWORD')
 
 # Connection string
-conn_str = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}'
+conn_str = f'DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password};TrustServerCertificate=yes;'
 
 def get_db_connection():
     return pyodbc.connect(conn_str)
@@ -624,22 +624,12 @@ def post_loan_payment(req: func.HttpRequest) -> func.HttpResponse:
         
         loan_amount, current_balance = loan_info
 
-        if payment_amount > current_balance:
-            return HttpResponse(
-                json.dumps({
-                    'status': 'error',
-                    'message': 'Payment amount cannot exceed current balance'
-                }),
-                status_code=400,
-                mimetype="application/json"
-            )
-            
         # Validate payment amount
-        if payment_amount > current_balance:
+        if payment_amount > float(current_balance):
             return HttpResponse(
                 json.dumps({
                     'status': 'error',
-                    'message': 'Payment amount cannot exceed current balance'
+                    'message': f'Payment amount cannot exceed current balance of {float(current_balance)}CAD'
                 }),
                 status_code=409,
                 mimetype="application/json"

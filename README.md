@@ -113,6 +113,54 @@ The API uses standard HTTP status codes:
 - 409: Conflict
 - 500: Server error
 
+## Install ODBC driver 
+Open SSH console to Azure Function App container.
+1. Ensure the ODBC Driver is Installed:
+Azure Functions on Linux might not have the ODBC Driver 17 for SQL Server pre-installed. You can install it by adding the following commands to your function app's startup script:
+```
+sudo apt-get update
+sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
+sudo apt-get install -y unixodbc-dev
+```
+2. Update the Connection String:
+If you are using Python 3.11, Azure Functions might come with ODBC Driver 18 instead of 17. Update your connection string to use the correct driver:
+```
+conn_str = "Driver={ODBC Driver 18 for SQL Server};Server=<server>;Database=<database>;Trusted_Connection=yes;
+```
+3. Verify the ODBC Configuration:
+Ensure that the ODBC driver is correctly listed in the /etc/odbcinst.ini file. You can add the following entry if it is missing:
+```
+[ODBC Driver 17 for SQL Server]
+Description=Microsoft ODBC Driver 17 for SQL Server
+Driver=/opt/microsoft/msodbcsql17/lib64/libmsodbcsql-17.0.so.1.1
+```
+4. Create a Symbolic Link (if necessary):
+If the driver is installed but not found, create a symbolic link:
+```
+sudo ln -s /opt/microsoft/msodbcsql17/lib64/libmsodbcsql-17.0.so.1.1 /usr/lib/libmsodbcsql-17.0.so.1.1
+```
+
+## Resolve SSL Certificate validation error
+If you get a SSL certificate verification failure when trying to connect to Sql Server, Here are a few steps to resolve this issue:
+1. Trust the Server Certificate:
+Add TrustServerCertificate=yes to your connection string to bypass the certificate validation:
+```
+conn_str = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=<server>;DATABASE=<database>;UID=<username>;PWD=<password>;TrustServerCertificate=yes;"
+```
+2. Install a Trusted Certificate:
+If you prefer to use a trusted certificate, you can install it on your SQL Server and configure your client to trust it. This involves obtaining a certificate from a trusted Certificate Authority (CA) and configuring SQL Server to use it
+3. Disable Encryption (if appropriate):
+You can disable encryption by setting Encrypt=no in your connection string, though this is not recommended for production environments due to security concerns:
+```
+conn_str = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=<server>;DATABASE=<database>;UID=<username>;PWD=<password>;Encrypt=no;"
+```
+4. Use the -C Flag with sqlcmd:
+If you are using sqlcmd, you can use the -C flag to trust the server certificate:
+```
+sqlcmd -S <server> -U <username> -P <password> -C
+```
+These steps should help resolve the SSL certificate verification error and allow you to connect to SQL Server using ODBC Driver 18
+
 ## Contributing
 
 1. Fork the repository
