@@ -1,4 +1,4 @@
-# Student Loan Management API
+# Student Loan Management API (mock)
 
 An Azure Functions-based API for managing student loans, payments, and student information.
 
