@@ -1260,6 +1260,7 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
                         'status': 'error',
                         'message': 'Student already has an active loan',
                         'existingLoan': {
+                            'loanid': float(student_info[0]),
                             'loanAmount': float(student_info[1]),
                             'disbursementDate': student_info[2].isoformat(),
                             'currentBalance': float(student_info[3]),
@@ -1303,6 +1304,7 @@ def add_student_loan(req: func.HttpRequest) -> func.HttpResponse:
                     s.LastName,
                     si.ProgramOfStudy,
                     ei.CollegeName,
+                    l.LoanInfoID,
                     l.LoanAmount,
                     l.EnrollmentType,
                     l.DisbursementDate,
