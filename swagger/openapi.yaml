@@ -493,4 +493,60 @@ paths:
                           totalAmount:
                             type: number
         '500':
-          description: Server error                    
+          description: Server error  
+
+  /student/address/iscanadian:
+    post:
+      summary: Check if an address is Canadian
+      description: Validates if a provided address is Canadian based on province and postal code format
+      tags:
+        - User Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - address
+              properties:
+                address:
+                  type: string
+                  description: Full address to validate
+                  example: "123 Maple Street, Toronto, ON M5V 2T6"
+      responses:
+        '200':
+          description: Address validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                    example: success
+                  isCanadian:
+                    type: boolean
+                    description: Whether the address is Canadian
+                    example: true
+                  address:
+                    type: string
+                    description: The validated address
+                    example: "123 Maple Street, Toronto, ON M5V 2T6"
+        '400':
+          description: Invalid request - missing address
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [error]
+                    example: error
+                  message:
+                    type: string
+                    example: "Address is required"
+        '500':
+          description: Server error

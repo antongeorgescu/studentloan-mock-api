@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from decimal import Decimal
 from datetime import date
 from collections import defaultdict
+import re
 
 # Load environment variables
 load_dotenv()
@@ -928,6 +929,126 @@ def update_student_address(req: func.HttpRequest) -> func.HttpResponse:
             cursor.close()
         if 'conn' in locals():
             conn.close()
+
+@app.route(route="student/address/iscanadian", auth_level=func.AuthLevel.ANONYMOUS)
+def is_canadian_address(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Check if an address is Canadian based on province and postal code format.
+    Returns True if address is Canadian, False otherwise.
+    """
+    logging.info('Python HTTP trigger function processed a request.')
+
+    # Create a dictionary of Canadian provinces and their codes
+    provinces_cities = {
+        'AB': {
+            'name': 'Alberta',
+            'cities': ['Calgary', 'Edmonton', 'Red Deer', 'Lethbridge', 'Medicine Hat']
+        },
+        'BC': {
+            'name': 'British Columbia',
+            'cities': ['Vancouver', 'Victoria', 'Surrey', 'Burnaby', 'Richmond']
+        },
+        'MB': {
+            'name': 'Manitoba',
+            'cities': ['Winnipeg', 'Brandon', 'Steinbach', 'Thompson', 'Portage la Prairie']
+        },
+        'NB': {
+            'name': 'New Brunswick',
+            'cities': ['Saint John', 'Fredericton', 'Moncton', 'Dieppe', 'Miramichi']
+        },
+        'NL': {
+            'name': 'Newfoundland and Labrador',
+            'cities': ['St. John\'s', 'Mount Pearl', 'Corner Brook', 'Paradise', 'Grand Falls-Windsor']
+        },
+        'NS': {
+            'name': 'Nova Scotia',
+            'cities': ['Halifax', 'Dartmouth', 'Sydney', 'Truro', 'New Glasgow']
+        },
+        'NT': {
+            'name': 'Northwest Territories',
+            'cities': ['Yellowknife', 'Hay River', 'Inuvik', 'Fort Smith', 'Norman Wells']
+        },
+        'NU': {
+            'name': 'Nunavut',
+            'cities': ['Iqaluit', 'Rankin Inlet', 'Arviat', 'Baker Lake', 'Cambridge Bay']
+        },
+        'ON': {
+            'name': 'Ontario',
+            'cities': ['Toronto', 'Ottawa', 'Mississauga', 'Hamilton', 'London']
+        },
+        'PE': {
+            'name': 'Prince Edward Island',
+            'cities': ['Charlottetown', 'Summerside', 'Stratford', 'Cornwall', 'Montague']
+        },
+        'QC': {
+            'name': 'Quebec',
+            'cities': ['Montreal', 'Quebec City', 'Laval', 'Gatineau', 'Longueuil']
+        },
+        'SK': {
+            'name': 'Saskatchewan',
+            'cities': ['Saskatoon', 'Regina', 'Prince Albert', 'Moose Jaw', 'Swift Current']
+        },
+        'YT': {
+            'name': 'Yukon',
+            'cities': ['Whitehorse', 'Dawson City', 'Watson Lake', 'Haines Junction', 'Mayo']
+        }
+    }
+
+    try:
+        # Get update data from request body
+        payload_data = req.get_json()
+        if not payload_data or 'address' not in payload_data:
+            return HttpResponse(
+                json.dumps({
+                    'status': 'error',
+                    'message': 'Address is required'
+                }),
+                status_code=400,
+                mimetype="application/json"
+            )
+        address = payload_data['address']
+
+        try:
+            # Canadian postal code pattern: A1A 1A1 or A1A1A1
+            postal_pattern = r'[A-Z]\d[A-Z]\s*\d[A-Z]\d'
+            
+            # Get list of all province codes and names
+            province_codes = list(provinces_cities.keys())
+            province_names = [prov['name'] for prov in provinces_cities.values()]
+            
+            # Check if address contains a valid province
+            has_province = any(code in address.upper() for code in province_codes) or \
+                        any(name in address for name in province_names)
+            
+            # Check if address contains valid postal code format
+            has_postal = bool(re.search(postal_pattern, address.upper()))
+            
+            result = has_province and has_postal
+
+            return HttpResponse(
+                json.dumps({
+                    'status': 'success',
+                    'message': 'Address check successful',
+                    'data': {
+                        'address': address,
+                        'isCanadian': result
+                    }
+                }),
+                status_code=200,
+                mimetype="application/json"
+            )
+        except Exception as e:
+            raise e
+
+    except Exception as e:
+        return HttpResponse(
+            json.dumps({
+                'status': 'error',
+                'message': str(e)
+            }),
+            status_code=500,
+            mimetype="application/json"
+        )
 
 @app.route(route="student/create-nonregistered", auth_level=func.AuthLevel.ANONYMOUS)
 def create_student_nonregistered(req: func.HttpRequest) -> func.HttpResponse:
