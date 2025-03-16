@@ -944,10 +944,6 @@ def is_canadian_address(req: func.HttpRequest) -> func.HttpResponse:
             'name': 'Alberta',
             'cities': ['Calgary', 'Edmonton', 'Red Deer', 'Lethbridge', 'Medicine Hat']
         },
-        'BC': {
-            'name': 'British Columbia',
-            'cities': ['Vancouver', 'Victoria', 'Surrey', 'Burnaby', 'Richmond']
-        },
         'MB': {
             'name': 'Manitoba',
             'cities': ['Winnipeg', 'Brandon', 'Steinbach', 'Thompson', 'Portage la Prairie']
@@ -964,14 +960,6 @@ def is_canadian_address(req: func.HttpRequest) -> func.HttpResponse:
             'name': 'Nova Scotia',
             'cities': ['Halifax', 'Dartmouth', 'Sydney', 'Truro', 'New Glasgow']
         },
-        'NT': {
-            'name': 'Northwest Territories',
-            'cities': ['Yellowknife', 'Hay River', 'Inuvik', 'Fort Smith', 'Norman Wells']
-        },
-        'NU': {
-            'name': 'Nunavut',
-            'cities': ['Iqaluit', 'Rankin Inlet', 'Arviat', 'Baker Lake', 'Cambridge Bay']
-        },
         'ON': {
             'name': 'Ontario',
             'cities': ['Toronto', 'Ottawa', 'Mississauga', 'Hamilton', 'London']
@@ -980,18 +968,6 @@ def is_canadian_address(req: func.HttpRequest) -> func.HttpResponse:
             'name': 'Prince Edward Island',
             'cities': ['Charlottetown', 'Summerside', 'Stratford', 'Cornwall', 'Montague']
         },
-        'QC': {
-            'name': 'Quebec',
-            'cities': ['Montreal', 'Quebec City', 'Laval', 'Gatineau', 'Longueuil']
-        },
-        'SK': {
-            'name': 'Saskatchewan',
-            'cities': ['Saskatoon', 'Regina', 'Prince Albert', 'Moose Jaw', 'Swift Current']
-        },
-        'YT': {
-            'name': 'Yukon',
-            'cities': ['Whitehorse', 'Dawson City', 'Watson Lake', 'Haines Junction', 'Mayo']
-        }
     }
 
     try:

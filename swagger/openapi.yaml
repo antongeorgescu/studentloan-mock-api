@@ -77,7 +77,7 @@ paths:
               description: Bad request - missing lastname parameter
           '500':
               description: Internal server error
-  /api/provinces/student-count:
+  /provinces/student-count:
     get:
       summary: Get student count by province
       description: Returns the number of students enrolled in each province
