@@ -1189,8 +1189,8 @@ def update_loan_study_info(req: func.HttpRequest) -> func.HttpResponse:
             # Check if loan exists and has study info and efucation institution
             cursor.execute("""
                 SELECT LoanInfoID, StudyInfoID, EducationInstitutionID
-                FROM Loan
-                WHERE LoanID = ?
+                FROM LoanInfo
+                WHERE LoanInfoID = ?
             """, loan_id)
             
             loan_info = cursor.fetchone()
@@ -1243,7 +1243,7 @@ def update_loan_study_info(req: func.HttpRequest) -> func.HttpResponse:
                 JOIN EducationInstitution ei ON l.EducationInstitutionID = ei.EducationInstitutionID
                 JOIN Province p ON ei.ProvinceID = p.ProvinceID
                 WHERE l.LoanInfoID = ?
-            """, loan_id)
+            """, loan_info_id)
 
             columns = [column[0] for column in cursor.description]
             updated_info = dict(zip(columns, cursor.fetchone()))
